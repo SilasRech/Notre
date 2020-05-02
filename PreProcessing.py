@@ -25,7 +25,7 @@ def batchmaking():
     test = training_files['Audio_Data']
     test2 = training_files.Name.unique()
 
-    #for i in range(2):
+    #for i in range(150):
     for i in range(len(test2)):
         if gp.extraction == 'CQT':
             feature_set = rosa.cqt(training_files.loc[training_files['Name'] == test2[i]]['Audio_Data'].to_numpy(), sr=16000, hop_length=256)
@@ -74,10 +74,11 @@ def batchmaking():
         train = np.concatenate((train, training_batch))
         test = np.concatenate((test, test_batch))
 
-    np.save('/home/jonny/Desktop/Trainingsdatenbank/train_features/test_data.npy', test)
-    np.save('/home/jonny/Desktop/Trainingsdatenbank/train_features/test_label.npy', test_label)
-    np.save('/home/jonny/Desktop/Trainingsdatenbank/train_features/train_data.npy', train)
-    np.save('/home/jonny/Desktop/Trainingsdatenbank/train_features/train_label.npy', train_label)
+        if i % 100 == 0:
+            np.save('/home/jonny/Desktop/Trainingsdatenbank/train_features/test_data{}.npy'.format(i), test)
+            np.save('/home/jonny/Desktop/Trainingsdatenbank/train_features/test_label{}.npy'.format(i), test_label)
+            np.save('/home/jonny/Desktop/Trainingsdatenbank/train_features/train_data{}.npy'.format(i), train)
+            np.save('/home/jonny/Desktop/Trainingsdatenbank/train_features/train_label{}.npy'.format(i), train_label)
 
     return train, test, train_label, test_label
 

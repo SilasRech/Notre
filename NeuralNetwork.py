@@ -78,16 +78,16 @@ def create_network(input_shape):
     x = Conv2D(32, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(32, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(64, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Dropout(0.4)(x)
+    x = Dropout(0.2)(x)
     x = Conv2D(64, kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
     x = Conv2D(128, kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(128, kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Conv2D(256, kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Dropout(0.4)(x)
-    x = Conv2D(256, kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    #x = Conv2D(256, kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Dropout(0.2)(x)
+    #x = Conv2D(256, kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
 
 
     #x = Reshape((42*5, 256))(x)
