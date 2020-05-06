@@ -11,10 +11,10 @@ def sum_labels(labels):
     :param labels: path to list of reference labels that are not only every 10ms
     :return: New list of labels in form of a dataframe - (averaged over the time window)
     """
-    data = pd.read_csv(labels, sep='\t', names=['F0', 'Time'])
-    data = {'Time': data.index, 'F0': data['F0'], 'Name': [Path(labels).stem]*len(data.index)}
+    data = pd.read_excel(labels, header=None)
+    data1 = {'Time': data.iloc[4:].index*0.01, 'F0_1': data.iloc[4:][1], 'F0_2': data.iloc[4:][2], 'F0_3': data.iloc[4:][3], 'Name': [Path(labels).stem]*(len(data.index)-4)}
 
-    return pd.DataFrame(data, columns=['Time', 'F0', 'Name'])
+    return pd.DataFrame(data1, columns=['Time', 'F0_1', 'F0_2', 'F0_3', 'Name'])
 
 def read_wav(wav_path):
     """
@@ -25,23 +25,23 @@ def read_wav(wav_path):
 
     #wavfile.write('D:/Backup/Trainingsdatenbank/train_features/test.wav', 16000, audio_data[:, 0])
 
-    audio_data_proc_mean = audio_data[:, 0] - audio_data[:, 0].mean()
+    audio_data_proc_mean = audio_data - audio_data.mean()
     audio_data_proc = audio_data_proc_mean / audio_data_proc_mean.std()
 
     df_audio_data = pd.DataFrame({'Name': [Path(wav_path).stem]*len(audio_data_proc), 'Audio_Data': audio_data_proc})
 
     return df_audio_data
 
-labels = glob.glob("D:/Backup/Trainingsdatenbank/MIR-1K_for_MIREX/PitchLabel/*.txt")
-wav_path = glob.glob("D:/Backup/Trainingsdatenbank/MIR-1K_for_MIREX/Wavfile/*.wav")
+labels = glob.glob("D:/Backup/Trainingsdatenbank/BenjaminDaten/*.xls")
+wav_path = glob.glob("D:/Backup/Trainingsdatenbank/BenjaminDaten/*.wav")
 
-label_dataframe = pd.DataFrame(columns=['Time', 'F0', 'Name'])
+label_dataframe = pd.DataFrame(columns=['Time', 'F0_1', 'F0_2', 'F0_3', 'Name'])
 audio_dataframe = pd.DataFrame(columns=['Name', 'Audio_Data'])
 
 for i in range(len(labels)):
 
     label_new = Path(wav_path[i]).stem
-    label = "D:/Backup/Trainingsdatenbank/MIR-1K_for_MIREX/PitchLabel/{}.txt".format(label_new)
+    label = "D:/Backup/Trainingsdatenbank/BenjaminDaten/{}labels.xls".format(label_new)
     new_frame = sum_labels(label)
 
     new_audioframe = read_wav(wav_path[i])
@@ -52,8 +52,8 @@ for i in range(len(labels)):
     print("Iteration {} of {}".format(i+1, len(labels)))
 
 
-label_dataframe.to_csv('D:/Backup/Trainingsdatenbank/training_label2.csv', index=False)
-audio_dataframe.to_csv('D:/Backup/Trainingsdatenbank/training_data2.csv', index=False)
+label_dataframe.to_csv('D:/Backup/Trainingsdatenbank/BenjaminDaten/training_label_Benjamin.csv', index=False)
+audio_dataframe.to_csv('D:/Backup/Trainingsdatenbank/BenjaminDaten/training_data_Benjamin.csv', index=False)
 
 print("Saving Successful")
 
