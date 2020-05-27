@@ -1,9 +1,7 @@
-import numpy as np
 import glob
 from scipy.io import wavfile
 import pandas as pd
 from pathlib import Path
-import math
 
 
 def sum_labels(labels):
@@ -12,9 +10,9 @@ def sum_labels(labels):
     :return: New list of labels in form of a dataframe - (averaged over the time window)
     """
     data = pd.read_excel(labels, header=None)
-    data1 = {'Time': data.iloc[4:].index*0.01, 'F0_1': data.iloc[4:][1], 'F0_2': data.iloc[4:][2], 'F0_3': data.iloc[4:][3], 'Name': [Path(labels).stem]*(len(data.index)-4)}
 
-    return pd.DataFrame(data1, columns=['Time', 'F0_1', 'F0_2', 'F0_3', 'Name'])
+    data1 = {'Time': data.iloc[6:].index*0.01, 'F0_1': data.iloc[6:][1], 'F0_2': data.iloc[6:][2], 'F0_3': data.iloc[6:][3], 'F0_4': data.iloc[6:][4], 'F0_5': data.iloc[6:][5], 'Name': [Path(labels).stem]*(len(data.index)-6)}
+    return pd.DataFrame(data1, columns=['Time', 'F0_1', 'F0_2', 'F0_3', 'F0_4', 'F0_5', 'Name'])
 
 def read_wav(wav_path):
     """
@@ -22,8 +20,6 @@ def read_wav(wav_path):
     :return: Pandas Dataframe with normalized data
     """
     fs, audio_data = wavfile.read(wav_path)
-
-    #wavfile.write('D:/Backup/Trainingsdatenbank/train_features/test.wav', 16000, audio_data[:, 0])
 
     audio_data_proc_mean = audio_data - audio_data.mean()
     audio_data_proc = audio_data_proc_mean / audio_data_proc_mean.std()
@@ -35,13 +31,13 @@ def read_wav(wav_path):
 labels = glob.glob("D:/Backup/Trainingsdatenbank/BenjaminDaten/*.xls")
 wav_path = glob.glob("D:/Backup/Trainingsdatenbank/BenjaminDaten/*.wav")
 
-label_dataframe = pd.DataFrame(columns=['Time', 'F0_1', 'F0_2', 'F0_3', 'Name'])
+label_dataframe = pd.DataFrame(columns=['Time', 'F0_1', 'F0_2', 'F0_3', 'F0_4', 'F0_5', 'Name'])
 audio_dataframe = pd.DataFrame(columns=['Name', 'Audio_Data'])
 
 for i in range(len(labels)):
 
     label_new = Path(wav_path[i]).stem
-    label = "D:/Backup/Trainingsdatenbank/BenjaminDaten/{}labels.xls".format(label_new)
+    label = "D:/Backup/Trainingsdatenbank/BenjaminDaten/{}_Labels.xls".format(label_new)
     new_frame = sum_labels(label)
 
     new_audioframe = read_wav(wav_path[i])

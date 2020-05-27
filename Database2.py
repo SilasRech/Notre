@@ -5,7 +5,6 @@ import pandas as pd
 from pathlib import Path
 import math
 
-
 def sum_labels(labels):
     """
     :param labels: path to list of reference labels that are not only every 10ms

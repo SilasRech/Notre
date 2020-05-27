@@ -1,15 +1,15 @@
 # Important Path to Set
-loaded = 0# 0 = is not loaded
-loaded_database = 'Benjamin'
+loaded = 1# 0 = is not loaded
+loaded_database = 'ChineseKaraoke'
 
 if loaded_database == 'Benjamin':
     label_dataframe_Path = 'D:/Backup/Trainingsdatenbank/BenjaminDaten/training_label_Benjamin.csv'
     audio_dataframe_Path = 'D:/Backup/Trainingsdatenbank/BenjaminDaten/training_data_Benjamin.csv'
-    sample_rate = 44100
+    sample_rate = 16000
 
 elif loaded_database == 'ChineseKaraoke':
-    label_dataframe_Path = 'C:/Users/silas/Desktop/trainingData/training_label2.csv'
-    audio_dataframe_Path = 'C:/Users/silas/Desktop/trainingData/training_data2.csv'
+    label_dataframe_Path = 'D:/Backup/Trainingsdatenbank/training_label2.csv'
+    audio_dataframe_Path = 'D:/Backup/Trainingsdatenbank/training_data2.csv'
     sample_rate = 16000
 
 else:
@@ -19,11 +19,12 @@ else:
 
 # Feature Extraction Parameters
 
-hop_length = 44100*0.01
+hop_length = sample_rate*0.01
 win_length = 512
 n_fft = 1024
 
-number_features = 32
+number_features = 16
+number_bins = 168
 extraction = 'CQT'
 
 
@@ -33,21 +34,25 @@ output_size = 64
 
 classes_to_detect = 120
 number_units_LSTM = 120
-last_filter_size = 128
+last_filter_size = 256
 
 if extraction == 'FFT':
     input_shape = (win_length+1, number_features, 1)
 
-    label_test_labels = 'D:/Backup/Trainingsdatenbank/train_features/test_label_FFT{}.npy'
-    label_test_data = 'D:/Backup/Trainingsdatenbank/train_features/test_data_FFT{}.npy'
-    label_train_labels = 'D:/Backup/Trainingsdatenbank/train_features/train_label_FFT{}.npy'
-    label_train_data = 'D:/Backup/Trainingsdatenbank/train_features/train_data_FFT{}.npy'
+    label_test_labels = 'D:/Backup/Trainingsdatenbank/train_features/test_label_FFT_first_.npy'
+    label_test_data = 'D:/Backup/Trainingsdatenbank/train_features/test_data_FFT_first_.npy'
+    label_train_labels = 'D:/Backup/Trainingsdatenbank/train_features/train_label_FFT_first_.npy'
+    label_train_data = 'D:/Backup/Trainingsdatenbank/train_features/train_data_FFT_first_.npy'
+    label_eval_labels = 'D:/Backup/Trainingsdatenbank/train_features/eval_label_FFT_first_.npy'
+    label_eval_data = 'D:/Backup/Trainingsdatenbank/train_features/eval_data_FFT_first_.npy'
 
 
 else:
-    input_shape = (84, number_features, 1)
+    input_shape = (number_bins, number_features, 1)
 
-    label_test_labels = 'D:/Backup/Trainingsdatenbank/train_features/test_label_CQT32_test{}.npy'
-    label_test_data = 'D:/Backup/Trainingsdatenbank/train_features/test_data_CQT32{}_test.npy'
-    label_train_labels = 'D:/Backup/Trainingsdatenbank/train_features/train_label_CQT32_test{}.npy'
-    label_train_data = 'D:/Backup/Trainingsdatenbank/train_features/train_data_CQT32{}_test.npy'
+    label_test_labels = 'D:/Backup/Trainingsdatenbank/train_features/test_label_CQT_first_1.npy'
+    label_test_data = 'D:/Backup/Trainingsdatenbank/train_features/test_data_CQT32_first_1.npy'
+    label_train_labels = 'D:/Backup/Trainingsdatenbank/train_features/train_label_CQT32_first_1.npy'
+    label_train_data = 'D:/Backup/Trainingsdatenbank/train_features/train_data_CQT32_first_1.npy'
+    label_eval_labels = 'D:/Backup/Trainingsdatenbank/train_features/eval_label_CQT32_first_1.npy'
+    label_eval_data = 'D:/Backup/Trainingsdatenbank/train_features/eval_data_CQT32_first_1.npy'
