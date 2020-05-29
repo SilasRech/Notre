@@ -3,7 +3,7 @@ import tensorflow as tf
 from keras import utils
 from tensorflow.keras.layers import Activation, Dropout, Dense, Conv2D, Flatten, MaxPooling2D, BatchNormalization, LSTM, Reshape
 from tensorflow.keras import Model, Input
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Nadam
 import random
 import math
 import matplotlib.pyplot as plt
@@ -13,6 +13,12 @@ import global_parameters as gp
 
 
 def neural_network(train, eval, test, train_label, eval_label, test_label):
+
+
+    train_label, train = delete_zero_labels(train_label, train)
+    eval_label, eval = delete_zero_labels(eval_label, eval)
+    test_label, test = delete_zero_labels(test_label, test)
+
     # Configuring Inputs
     if gp.loaded_database == 'Benjamin':
         quant_test_label = utils.to_categorical(test_label[:, 1], num_classes=120)
@@ -24,6 +30,9 @@ def neural_network(train, eval, test, train_label, eval_label, test_label):
         quant_eval_label = utils.to_categorical(eval_label, num_classes=120)
         quant_train_label = utils.to_categorical(train_label, num_classes=120)
 
+# Find Date with label zero
+
+
     average_melody = []
 
     # Clear Model
@@ -31,8 +40,8 @@ def neural_network(train, eval, test, train_label, eval_label, test_label):
 
     # Basic Neural Network Settings
     input_shape = gp.input_shape
-    learning_rate = 0.001
-    adam = Adam(learning_rate=learning_rate, beta_1=0.9, beta_2=0.999)
+    learning_rate = 0.002
+    adam = Nadam(learning_rate=learning_rate, beta_1=0.9, beta_2=0.999)
 
     # Building the architecture of the network
     model = create_network(input_shape)
@@ -40,9 +49,9 @@ def neural_network(train, eval, test, train_label, eval_label, test_label):
 
     # Compiling and Building of the Model
     model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
-    history = model.fit(train, quant_train_label,
-              batch_size=100,
-              epochs=30,
+    history = model.fit(test, quant_test_label,
+              batch_size=150,
+              epochs=50,
               validation_data=(eval, quant_eval_label), shuffle=True)
 
     acc = model.evaluate(x=test, y=quant_test_label)
@@ -76,57 +85,58 @@ def create_network(input_shape):
     x = BatchNormalization()(input)
     #
     x = Conv2D(int(gp.last_filter_size / 8), kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = BatchNormalization()(x)
+    x = BatchNormalization()(x)
     x = Conv2D(int(gp.last_filter_size / 8), kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = Dropout(0.1)(x)
+    x = Dropout(0.2)(x)
 
 
     # Group 1
-    #x = MaxPooling2D(pool_size=(1, 4), strides=(1, 4), padding='same')(x)
+    x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
     aux_output1 = Conv2D(int(gp.last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(int(gp.last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = BatchNormalization()(x)
+    x = BatchNormalization()(x)
     x = Conv2D(int(gp.last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output1])
-    #x = Dropout(0.1)(x)
+    x = Dropout(0.2)(x)
 
     # Group 2
     x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
     aux_output2 = Conv2D(int(gp.last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu',
                          padding='same')(x)
     x = Conv2D(int(gp.last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = BatchNormalization()(x)
+    x = BatchNormalization()(x)
     x = Conv2D(int(gp.last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output2])
-    #x = Dropout(0.1)(x)
+    x = Dropout(0.2)(x)
 
     # Group 3
-    #x = BatchNormalization()(x)
     x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
 
     aux_output3 = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu',
                          padding='same')(x)
     x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
     x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output3])
+    x = Dropout(0.2)(x)
+
+    #x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
     #x = Dropout(0.1)(x)
+    #x = Conv2D(int(gp.last_filter_size/2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
 
     x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
-    #x = Dropout(0.1)(x)
-    x = Conv2D(int(gp.last_filter_size/2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
 
-    x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
-
+    x = BatchNormalization()(x)
+    #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     #x = BatchNormalization()(x)
-    x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = Dropout(0.1)(x)
+    #x = Dropout(0.2)(x)
 
-    #x = Reshape((120, 256*16))(x)
+    #x = Reshape((gp.number_bins, gp.last_filter_size))(x)
 
-    #x = tf.keras.layers.Bidirectional(LSTM(200, activation='sigmoid'))(x)
+    #x = tf.keras.layers.Bidirectional(LSTM(168, activation='sigmoid'))(x)
     """
     x = tf.keras.layers.LSTM(
         units, activation='tanh', recurrent_activation='sigmoid', use_bias=True,
@@ -154,3 +164,16 @@ def calculate_labels(number_classes, raw_labels):
     labels = np.digitize(raw_labels, notes)
 
     return labels
+
+
+def delete_zero_labels(labels, data):
+
+    vector_zeros = np.where(labels != 0)
+    new_labels = []
+    new_data = []
+
+    for i in range(len(vector_zeros)):
+        new_labels.append(labels[vector_zeros[i]])
+        new_data.append(data[vector_zeros[i]])
+
+    return np.asarray(new_labels[0]), np.asarray(new_data[0])

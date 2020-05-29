@@ -1,6 +1,6 @@
 # Important Path to Set
-loaded = 1# 0 = is not loaded
-loaded_database = 'ChineseKaraoke'
+loaded = 0# 0 = is not loaded
+loaded_database = 'Benjamin'
 
 if loaded_database == 'Benjamin':
     label_dataframe_Path = 'D:/Backup/Trainingsdatenbank/BenjaminDaten/training_label_Benjamin.csv'
@@ -34,7 +34,7 @@ output_size = 64
 
 classes_to_detect = 120
 number_units_LSTM = 120
-last_filter_size = 256
+last_filter_size = 128
 
 if extraction == 'FFT':
     input_shape = (win_length+1, number_features, 1)
@@ -50,9 +50,19 @@ if extraction == 'FFT':
 else:
     input_shape = (number_bins, number_features, 1)
 
-    label_test_labels = 'D:/Backup/Trainingsdatenbank/train_features/test_label_CQT_first_1.npy'
-    label_test_data = 'D:/Backup/Trainingsdatenbank/train_features/test_data_CQT32_first_1.npy'
-    label_train_labels = 'D:/Backup/Trainingsdatenbank/train_features/train_label_CQT32_first_1.npy'
-    label_train_data = 'D:/Backup/Trainingsdatenbank/train_features/train_data_CQT32_first_1.npy'
-    label_eval_labels = 'D:/Backup/Trainingsdatenbank/train_features/eval_label_CQT32_first_1.npy'
-    label_eval_data = 'D:/Backup/Trainingsdatenbank/train_features/eval_data_CQT32_first_1.npy'
+    # Name Files in the fashion of FeatureExtraction_NumberFeatures
+    label_test_labels = 'D:/Backup/Trainingsdatenbank/train_features/test_label_CQT_16_Benjamin.npy'
+    label_test_data = 'D:/Backup/Trainingsdatenbank/train_features/test_data_CQT_16_Benjamin.npy'
+    label_train_labels = 'D:/Backup/Trainingsdatenbank/train_features/train_labelCQT_16_Benjamin.npy'
+    label_train_data = 'D:/Backup/Trainingsdatenbank/train_features/train_data_CQT_16_Benjamin.npy'
+    label_eval_labels = 'D:/Backup/Trainingsdatenbank/train_features/eval_label_CQT_16_Benjamin.npy'
+    label_eval_data = 'D:/Backup/Trainingsdatenbank/train_features/eval_data_CQT_16_Benjamin.npy'
+
+
+
+    #label_test_labels = 'D:/Backup/Trainingsdatenbank/train_features/test_label_CQT32_echt.npy'
+    #label_test_data = 'D:/Backup/Trainingsdatenbank/train_features/test_data_CQT32_echt.npy'
+    #label_train_labels = 'D:/Backup/Trainingsdatenbank/train_features/train_labelCQT32_echt.npy'
+    #label_train_data = 'D:/Backup/Trainingsdatenbank/train_features/train_data_CQT32_echt.npy'
+    #label_eval_labels = 'D:/Backup/Trainingsdatenbank/train_features/eval_label_CQT32_echt.npy'
+    #label_eval_data = 'D:/Backup/Trainingsdatenbank/train_features/eval_data_CQT32_echt.npy'

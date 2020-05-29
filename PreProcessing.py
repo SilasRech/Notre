@@ -20,9 +20,15 @@ def create_labels1(label_vec, frames, position_frame):
 
 
 def create_multi_labels(label_vec, frames, position_frame):
+    if position_frame == "middle":
+        label_position = int(round(frames / 2))
+    elif position_frame == 'first':
+        label_position = 1
+    else:
+        label_position = frames - 1
 
     increment_vec = np.arange(0, len(label_vec), frames)
-    label_position = int(round(frames / 2))
+
     labels = []
     test1 = label_vec['F0_1'].reset_index(drop=True)
     test2 = label_vec['F0_2'].reset_index(drop=True)
@@ -37,6 +43,7 @@ def create_multi_labels(label_vec, frames, position_frame):
 
     return labels
 
+
 def hz_to_note(freq):
     midi = 12 * (np.log2(np.asanyarray(freq)) - np.log2(440.0)) + 69
 
@@ -46,6 +53,7 @@ def hz_to_note(freq):
     note_num = int(np.round(midi))
 
     return note_num
+
 
 def create_labels(label_vec, frames, position_frame):
     """
@@ -91,16 +99,11 @@ def batchmaking():
 
     list_of_names = training_files.Name.unique()
 
-    test1 = np.load(gp.label_test_data)
-    test_label = np.load(gp.label_test_labels)
-
-    for i in range(614, 1000, 1):
+    for i in range(len(list_of_names)):
         print("Batch Number {} / {}".format(i, len(list_of_names)))
 
         if gp.extraction == 'CQT':
-            empty_feature_vec = []
             loading_time_on2 = time.perf_counter()
-            len_signal_sec = len(training_files.loc[training_files['Name'] == list_of_names[i]]['Audio_Data'].to_numpy()) / 16000
 
             # Create Labels depending on the length of one input frame
             if gp.loaded_database == 'Benjamin':
@@ -109,22 +112,18 @@ def batchmaking():
                 real_name = list_of_names[i]
 
             batched_labels = training_labels.loc[training_labels['Name'] == real_name][:]
+            len_individual_file = int(round(len(batched_labels)*gp.number_features*10))
 
             audio_file = training_files.loc[training_files['Name'] == list_of_names[i]]['Audio_Data'].to_numpy()
-            audio_file = audio_file[:int(round(len(batched_labels)*160))]
+            audio_file = audio_file[:len_individual_file]
 
-            #framed_file = make_frames(audio_file, window_size=int(gp.number_features*20), hop_size=int(gp.number_features*10), sampling_rate=gp.sample_rate)
-            #num_samples, x = np.shape(framed_file)
-
-            #for m in range(num_samples):
-            #    feature_set = np.abs(rosa.cqt(framed_file[m, :], sr=gp.sample_rate, fmin=rosa.note_to_hz('D2'), bins_per_octave=36, n_bins=gp.number_bins, hop_length=512))
-            #    empty_feature_vec.append(feature_set)
             empty_feature_vec = np.abs(
                 rosa.cqt(audio_file, sr=gp.sample_rate, fmin=rosa.note_to_hz('D2'), bins_per_octave=36,
-                         n_bins=gp.number_bins, hop_length=160))
+                         n_bins=gp.number_bins, hop_length=len_individual_file))
 
             loading_time_off2 = time.perf_counter()
             print(f"CQT-Calculation: {loading_time_off2 - loading_time_on2:0.4f} seconds")
+
         else:
             print("FFT {} starting... ".format(i))
             # Calculating STFT and cutting them to multiple of numbers of features for reshape
@@ -141,9 +140,11 @@ def batchmaking():
                 real_name = list_of_names[i]
 
             batched_labels = training_labels.loc[training_labels['Name'] == real_name][:]
+            len_individual_file = int(round(len(batched_labels) * gp.number_features * 10))
+
 
             audio_file = training_files.loc[training_files['Name'] == list_of_names[i]]['Audio_Data'].to_numpy()
-            audio_file = audio_file[:int(round(len(batched_labels) * 160))]
+            audio_file = audio_file[:int(round(len(batched_labels) * len_individual_file))]
 
             framed_file = make_frames(audio_file, window_size=int(gp.number_features * 20),
                                       hop_size=int(gp.number_features * 10), sampling_rate=gp.sample_rate)
@@ -177,7 +178,7 @@ def batchmaking():
         reshaped_data = reshaping_data(batched_data, gp.number_bins, gp.number_features)
 
         # Split into Test and Training Set and Reshaping into 4-dimensional input for Neural Network
-        if i < (int(round(len(list_of_names)/3))):
+        if i < (int(round(len(list_of_names)*(4/5)))):
             split = int(round(np.shape(reshaped_data)[0]*0.8))
 
             loading_time_on3 = time.perf_counter()
@@ -214,9 +215,9 @@ def batchmaking():
 
             #print(f"Reshaping: {loading_time_off3 - loading_time_on3:0.4f} seconds")
 
-            #if i == (int(round(len(list_of_names)/3))):
-            #    test_label = labels
-            #    test1 = reshaped_data
+            if i == (int(round(len(list_of_names)*(4/5)))):
+                test_label = labels
+                test1 = reshaped_data
 
             loading_time_on4 = time.perf_counter()
 
@@ -227,10 +228,10 @@ def batchmaking():
             loading_time_off4 = time.perf_counter()
             print(f"Concatenating Time: {loading_time_off4 - loading_time_on4:0.4f} seconds")
 
-            #np.save(gp.label_eval_data, eval)
-            #np.save(gp.label_eval_labels, eval_label)
-            #np.save(gp.label_train_data, train)
-            #np.save(gp.label_train_labels, train_label)
+            np.save(gp.label_eval_data, eval)
+            np.save(gp.label_eval_labels, eval_label)
+            np.save(gp.label_train_data, train)
+            np.save(gp.label_train_labels, train_label)
             np.save(gp.label_test_data, test1)
             np.save(gp.label_test_labels, test_label)
 
