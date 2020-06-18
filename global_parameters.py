@@ -1,5 +1,5 @@
 # Important Path to Set
-loaded = 0# 0 = is not loaded
+loaded = 1# 0 = is not loaded
 loaded_database = 'Benjamin'
 
 if loaded_database == 'Benjamin':
@@ -32,7 +32,7 @@ extraction = 'CQT'
 input_size = 1000
 output_size = 64
 
-classes_to_detect = 120
+classes_to_detect = 60
 number_units_LSTM = 120
 last_filter_size = 128
 

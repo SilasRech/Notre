@@ -15,32 +15,45 @@ import global_parameters as gp
 def neural_network(train, eval, test, train_label, eval_label, test_label):
 
 
-    train_label, train = delete_zero_labels(train_label, train)
-    eval_label, eval = delete_zero_labels(eval_label, eval)
-    test_label, test = delete_zero_labels(test_label, test)
+    # Find Data with label zero
+
+
 
     # Configuring Inputs
     if gp.loaded_database == 'Benjamin':
-        quant_test_label = utils.to_categorical(test_label[:, 1], num_classes=120)
-        quant_eval_label = utils.to_categorical(eval_label[:, 1], num_classes=120)
-        quant_train_label = utils.to_categorical(train_label[:, 1], num_classes=120)
+        train_label, train = delete_zero_labels(train_label[:, 1], train)
+        eval_label, eval = delete_zero_labels(eval_label[:, 1], eval)
+        test_label, test = delete_zero_labels(test_label[:, 1], test)
+
+        train_label -= np.min(train_label)
+        eval_label -= np.min(eval_label)
+        test_label -= np.min(test_label)
+
+        quant_test_label = utils.to_categorical(test_label, num_classes=gp.classes_to_detect)
+        quant_eval_label = utils.to_categorical(eval_label, num_classes=gp.classes_to_detect)
+        quant_train_label = utils.to_categorical(train_label, num_classes=gp.classes_to_detect)
 
     else:
-        quant_test_label = utils.to_categorical(test_label, num_classes=120)
-        quant_eval_label = utils.to_categorical(eval_label, num_classes=120)
-        quant_train_label = utils.to_categorical(train_label, num_classes=120)
+        train_label, train = delete_zero_labels(train_label, train)
+        eval_label, eval = delete_zero_labels(eval_label, eval)
+        test_label, test = delete_zero_labels(test_label, test)
 
-# Find Date with label zero
+        train_label -= np.min(train_label)
+        eval_label -= np.min(eval_label)
+        test_label -= np.min(test_label)
+
+        quant_test_label = utils.to_categorical(test_label, num_classes=gp.classes_to_detect)
+        quant_eval_label = utils.to_categorical(eval_label, num_classes=gp.classes_to_detect)
+        quant_train_label = utils.to_categorical(train_label, num_classes=gp.classes_to_detect)
 
 
-    average_melody = []
 
     # Clear Model
     tf.keras.backend.clear_session()
 
     # Basic Neural Network Settings
     input_shape = gp.input_shape
-    learning_rate = 0.002
+    learning_rate = 0.0002
     adam = Nadam(learning_rate=learning_rate, beta_1=0.9, beta_2=0.999)
 
     # Building the architecture of the network
@@ -49,7 +62,7 @@ def neural_network(train, eval, test, train_label, eval_label, test_label):
 
     # Compiling and Building of the Model
     model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
-    history = model.fit(test, quant_test_label,
+    history = model.fit(train, quant_train_label,
               batch_size=150,
               epochs=50,
               validation_data=(eval, quant_eval_label), shuffle=True)
@@ -79,15 +92,14 @@ def create_network(input_shape):
 
     input = Input(shape=input_shape)
     filters = gp.number_units_LSTM
-    units = 120
 
     #First Block
     x = BatchNormalization()(input)
     #
-    x = Conv2D(int(gp.last_filter_size / 8), kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(gp.last_filter_size / 8), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(int(gp.last_filter_size / 8), kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Dropout(0.2)(x)
+    x = Conv2D(int(gp.last_filter_size / 8), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    #x = Dropout(0.2)(x)
 
 
     # Group 1
@@ -97,7 +109,7 @@ def create_network(input_shape):
     x = BatchNormalization()(x)
     x = Conv2D(int(gp.last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output1])
-    x = Dropout(0.2)(x)
+    #x = Dropout(0.2)(x)
 
     # Group 2
     x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
@@ -107,7 +119,7 @@ def create_network(input_shape):
     x = BatchNormalization()(x)
     x = Conv2D(int(gp.last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output2])
-    x = Dropout(0.2)(x)
+    #x = Dropout(0.2)(x)
 
     # Group 3
     x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
@@ -118,7 +130,7 @@ def create_network(input_shape):
     x = BatchNormalization()(x)
     x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output3])
-    x = Dropout(0.2)(x)
+    #x = Dropout(0.2)(x)
 
     #x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
     #x = Dropout(0.1)(x)
@@ -127,16 +139,16 @@ def create_network(input_shape):
     x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
 
     x = BatchNormalization()(x)
-    #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     #x = Conv2D(int(gp.last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     #x = BatchNormalization()(x)
     #x = Dropout(0.2)(x)
 
-    #x = Reshape((gp.number_bins, gp.last_filter_size))(x)
+    x = Reshape((gp.number_bins, gp.last_filter_size))(x)
 
-    #x = tf.keras.layers.Bidirectional(LSTM(168, activation='sigmoid'))(x)
+    x = tf.keras.layers.Bidirectional(LSTM(168, activation='sigmoid'))(x)
     """
     x = tf.keras.layers.LSTM(
         units, activation='tanh', recurrent_activation='sigmoid', use_bias=True,

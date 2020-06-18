@@ -5,6 +5,7 @@ import pandas as pd
 import time
 from os import path
 import tools
+import sys
 
 def create_labels1(label_vec, frames, position_frame):
     increment_vec = np.arange(0, len(label_vec), frames)
@@ -100,71 +101,37 @@ def batchmaking():
     list_of_names = training_files.Name.unique()
 
     for i in range(len(list_of_names)):
-        print("Batch Number {} / {}".format(i, len(list_of_names)))
+        #print("Batch Number {} / {}".format(i, len(list_of_names)))
 
-        if gp.extraction == 'CQT':
-            loading_time_on2 = time.perf_counter()
+        sys.stdout.write('\r')
+        sys.stdout.write("[%-20s] %d%%" % ('=' * int(round(20/len(list_of_names)*i)), 100/len(list_of_names) * i))
+        sys.stdout.flush()
 
-            # Create Labels depending on the length of one input frame
-            if gp.loaded_database == 'Benjamin':
-                real_name = list_of_names[i] + '_Labels'
-            else:
-                real_name = list_of_names[i]
-
-            batched_labels = training_labels.loc[training_labels['Name'] == real_name][:]
-            len_individual_file = int(round(len(batched_labels)*gp.number_features*10))
-
-            audio_file = training_files.loc[training_files['Name'] == list_of_names[i]]['Audio_Data'].to_numpy()
-            audio_file = audio_file[:len_individual_file]
-
-            empty_feature_vec = np.abs(
-                rosa.cqt(audio_file, sr=gp.sample_rate, fmin=rosa.note_to_hz('D2'), bins_per_octave=36,
-                         n_bins=gp.number_bins, hop_length=len_individual_file))
-
-            loading_time_off2 = time.perf_counter()
-            print(f"CQT-Calculation: {loading_time_off2 - loading_time_on2:0.4f} seconds")
-
+        # Create Labels depending on the length of one input frame
+        if gp.loaded_database == 'Benjamin':
+            real_name = list_of_names[i] + '_Labels'
         else:
-            print("FFT {} starting... ".format(i))
-            # Calculating STFT and cutting them to multiple of numbers of features for reshape
+            real_name = list_of_names[i]
 
-            empty_feature_vec = []
-            loading_time_on2 = time.perf_counter()
-            len_signal_sec = len(
-                training_files.loc[training_files['Name'] == list_of_names[i]]['Audio_Data'].to_numpy()) / 16000
+        batched_labels = training_labels.loc[training_labels['Name'] == real_name][:]
+        audio_file = training_files.loc[training_files['Name'] == list_of_names[i]]['Audio_Data'].to_numpy()
 
-            # Create Labels depending on the length of one input frame
-            if gp.loaded_database == 'Benjamin':
-                real_name = list_of_names[i] + '_Labels'
-            else:
-                real_name = list_of_names[i]
+        len_label_file = int(round(len(batched_labels)*gp.number_features*10))
+        len_data_file = len(audio_file)
 
-            batched_labels = training_labels.loc[training_labels['Name'] == real_name][:]
-            len_individual_file = int(round(len(batched_labels) * gp.number_features * 10))
+        len_to_take = min([len_data_file, len_label_file])
 
+        audio_file = audio_file[:len_to_take]
 
-            audio_file = training_files.loc[training_files['Name'] == list_of_names[i]]['Audio_Data'].to_numpy()
-            audio_file = audio_file[:int(round(len(batched_labels) * len_individual_file))]
+        empty_feature_vec = np.abs(
+            rosa.cqt(audio_file, sr=gp.sample_rate, fmin=rosa.note_to_hz('D2'), bins_per_octave=36,
+                     n_bins=gp.number_bins, hop_length=gp.number_features*10))
 
-            framed_file = make_frames(audio_file, window_size=int(gp.number_features * 20),
-                                      hop_size=int(gp.number_features * 10), sampling_rate=gp.sample_rate)
-            num_samples, x = np.shape(framed_file)
+        # Processing for Extracted Features
 
-            for m in range(num_samples):
-                feature_set = np.abs(rosa.stft(training_files.loc[training_files['Name'] ==
-                                                                  list_of_names[i]]['Audio_Data'].to_numpy(),
-                                               n_fft=1024, win_length=int(gp.number_features*10),
-                                               hop_length=int(gp.number_features*10/2)))
-
-                empty_feature_vec.append(feature_set)
-
-            loading_time_off2 = time.perf_counter()
-            print(f"FFT-Calculation: {loading_time_off2 - loading_time_on2:0.4f} seconds")
-
-        number_training_samples = len(batched_labels) - len(batched_labels) % gp.number_features
+        number_training_samples = int(round(len_to_take/160)) - int(round(len_to_take/160)) % gp.number_features
         batched_data = empty_feature_vec[:, :number_training_samples]
         batched_labels = batched_labels.iloc[:number_training_samples, :]
-
 
         # Get Labels with length of prior computed feature vector
         #batched_labels = training_labels.loc[training_labels['Name'] == real_name][:]
@@ -181,8 +148,6 @@ def batchmaking():
         if i < (int(round(len(list_of_names)*(4/5)))):
             split = int(round(np.shape(reshaped_data)[0]*0.8))
 
-            loading_time_on3 = time.perf_counter()
-
             # Reshaping into final format
             training_batch = reshaped_data[:split, :, :, :]
             eval_batch = reshaped_data[split:, :, :, :]
@@ -190,16 +155,11 @@ def batchmaking():
             training_labels_batch = labels[:split]
             eval_labels_batch = labels[split:]
 
-            loading_time_off3 = time.perf_counter()
-            print(f"Reshaping: {loading_time_off3 - loading_time_on3:0.4f} seconds")
-
             if i == 0:
                 train_label = training_labels_batch
                 eval_label = eval_labels_batch
                 train = training_batch
                 eval = eval_batch
-
-            loading_time_on4 = time.perf_counter()
 
             # Concatenating Training and Testing Data
             train_label = np.concatenate((train_label, training_labels_batch))
@@ -208,25 +168,15 @@ def batchmaking():
             train = np.concatenate((train, training_batch))
             eval = np.concatenate((eval, eval_batch))
 
-            loading_time_off4 = time.perf_counter()
-            print(f"Concatenating Time: {loading_time_off4 - loading_time_on4:0.4f} seconds")
-
         else:
-
-            #print(f"Reshaping: {loading_time_off3 - loading_time_on3:0.4f} seconds")
 
             if i == (int(round(len(list_of_names)*(4/5)))):
                 test_label = labels
                 test1 = reshaped_data
 
-            loading_time_on4 = time.perf_counter()
-
             # Concatenating Testing Data
             test1 = np.concatenate((test1, reshaped_data))
             test_label = np.concatenate((test_label, labels))
-
-            loading_time_off4 = time.perf_counter()
-            print(f"Concatenating Time: {loading_time_off4 - loading_time_on4:0.4f} seconds")
 
             np.save(gp.label_eval_data, eval)
             np.save(gp.label_eval_labels, eval_label)
@@ -237,7 +187,6 @@ def batchmaking():
 
             if path.exists(gp.label_test_data):
                 print('Saving Successful')
-
 
     return train, eval, test1, train_label, eval_label, test_label
 
