@@ -10,91 +10,95 @@ from tensorflow.keras import models
 import feature_extraction as fe
 from itertools import chain
 from tqdm import tqdm
+import random
+import keras
 
 
 def train_model(model_dir, basic_path, parameter):
 
-    if os.path.exists('data/feats_eval.npy'):
-        print('--' * 40)
-        print('loading training data')
-        feats_eval = np.load(os.path.join('data', 'feats_eval.npy'))
-        feats_train = np.load(os.path.join('data', 'feats_train.npy'))
-        target_train = np.load(os.path.join('data', 'target_train.npy'))
-        target_eval = np.load(os.path.join('data', 'target_eval.npy'))
-        print('--' * 40)
-        print('finished loading')
-
-    else:
-        print('--' * 40)
-        print('training data does not exists, starting to extract features')
-        x_dirs = glob.glob(basic_path + "/*.wav")
-        x_dirs = sorted(x_dirs)
-        y_dirs = glob.glob(basic_path + "/*.xls")
-        y_dirs = sorted(y_dirs)
-
-        # Take 70% of all available data as training and 10% for evaluation
-        end_training_data = int(round(0.7*len(x_dirs)))
-        end_eval_data = int(round(0.8*len(x_dirs)))
-
-        feats_train, target_train = generator(x_dirs[:end_training_data], y_dirs[:end_training_data], parameter)
-
-        feats_eval, target_eval = generator(x_dirs[end_training_data:end_eval_data], y_dirs[end_training_data:end_eval_data], parameter)
-
-        if not os.path.exists('data'):
-            os.makedirs('data')
-            np.save(os.path.join('data', 'feats_eval.npy'), feats_eval)
-            np.save(os.path.join('data', 'target_eval.npy'), target_eval)
-            np.save(os.path.join('data', 'feats_train.npy'), feats_train)
-            np.save(os.path.join('data', 'target_train.npy'), target_train)
-
-            if os.path.exists('data/target_train.npy'):
-                print('--' * 40)
-                print('saving successful')
-
     # Clear Model
     tf.keras.backend.clear_session()
 
-    # Input Shape
-    number_features = parameter['left_context'] + parameter['right_context'] + 1
-    input_shape = (parameter['num_bins'], number_features, 1)
+    print('--' * 40)
+    print('training data does not exists, starting to extract features')
+    x_dirs = glob.glob(basic_path + "/*.wav")
+    x_dirs = sorted(x_dirs)
+    y_dirs = glob.glob(basic_path + "/*.xls")
+    y_dirs = sorted(y_dirs)
 
-    # Optimizer Settings
-    learning_rate = 0.0001
-    adam = Adam(learning_rate=learning_rate, beta_1=0.9, beta_2=0.999)
+    # Take 70% of all available data as training and 10% for evaluation
+    end_training_data = int(round(0.7 * len(x_dirs)))
+    end_eval_data = int(round(0.8 * len(x_dirs)))
+
+    num_packages = 5
+
+    if os.path.exists(os.path.join(basic_path, 'data/feats_eval.npy')):
+
+        feats_eval = np.load(os.path.join(basic_path, 'data/feats_eval.npy'))
+        target_eval = np.load(os.path.join(basic_path, 'data/target_eval.npy'))
+    else:
+
+        # save eval data once as training needs to be packaged
+        feats_eval, target_eval = generator(x_dirs[end_training_data:end_eval_data], y_dirs[end_training_data:end_eval_data], parameter)
+
+        if not os.path.exists(os.path.join(basic_path, 'data')):
+            os.makedirs(os.path.join(basic_path, 'data'))
+
+        np.save(os.path.join(basic_path, 'data/feats_eval.npy'), feats_eval)
+        np.save(os.path.join(basic_path, 'data/target_eval.npy'), target_eval)
+
+    # Building the architecture of the network
+    model = create_network(parameter)
 
     # Callbacks
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=4)
-    model_checkpoint = tf.keras.callbacks.ModelCheckpoint(model_dir)
     tensorboard = tf.keras.callbacks.TensorBoard(log_dir='logs\multiclassDetection')
 
-    # Building the architecture of the network
-    model = create_network(input_shape, parameter)
-    model.summary()
+    x_dirs_train = x_dirs[:int(round(0.7 * len(x_dirs)))]
+    y_dirs_train = y_dirs[:int(round(0.7 * len(x_dirs)))]
 
-    # Compiling and Building of the Model
-    model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True), optimizer=adam, metrics=['accuracy'])
+    for j in range(1):
 
-    history = model.fit(feats_train, target_train,
-                                    batch_size=150,
-                                    epochs=5,
-                                    callbacks=[early_stopping, model_checkpoint, tensorboard],
-                                    validation_data=(feats_eval, target_eval),
-                                    shuffle=True)
+        # shuffle data
+        shuffled_list = list(zip(x_dirs_train, y_dirs_train))
+        random.shuffle(shuffled_list)
+        x_dirs, y_dirs = zip(*shuffled_list)
 
-    model.save(model_dir)
+        # Take 70% of all available data as training and 10% for evaluation
+        end_training_data = int(round(0.7 * len(x_dirs)))
+
+        num_packages = np.linspace(0, end_training_data, num=num_packages).astype(int)
+
+        for i in range(len(num_packages)-1):
+            print('Epoch:' + ' ' + str(j) + '\t' + 'Batch:' + ' ' + str(i))
+
+            feats_train, target_train = generator(x_dirs[num_packages[i]:num_packages[i+1]], y_dirs[num_packages[i]:num_packages[i+1]], parameter)
+
+            np.save(os.path.join(basic_path, 'data/feats_train{}.npy'.format(i)), feats_train)
+            np.save(os.path.join(basic_path, 'data/target_train{}.npy'.format(i)), target_train)
+
+            history = model.fit(feats_train, target_train,
+                                        batch_size=150,
+                                        epochs=1,
+                                        callbacks=[early_stopping, tensorboard],
+                                        validation_data=(feats_eval, target_eval),
+                                        shuffle=True)
+
+            model.save(model_dir)
 
     return history
 
 
 def testing_network(model_dir, basic_path, parameter):
 
-    if os.path.exists('data/feats_test.npy'):
+    if os.path.exists(os.path.join(basic_path, 'data/feats_test.npy')):
         print('--' * 40)
         print('loading data')
-        feats_test = np.load(os.path.join('data', 'feats_test.npy'))
-        target_test = np.load(os.path.join('data', 'target_test.npy'))
+        feats_test = np.load(os.path.join(basic_path, 'data/feats_test.npy'))
+        target_test = np.load(os.path.join(basic_path, 'data/target_test.npy'))
         print('--' * 40)
         print('finished loading')
+
     else:
 
         x_dirs = glob.glob(basic_path + "/*.wav")
@@ -107,13 +111,13 @@ def testing_network(model_dir, basic_path, parameter):
 
         feats_test, target_test = generator(x_dirs[start_test_data:], y_dirs[start_test_data:], parameter)
 
-        if not os.path.exists('data'):
-            os.makedirs('data')
+        if not os.path.exists(os.path.join(basic_path, '/data')):
+            os.makedirs(os.path.join(basic_path, '/data'))
 
-        np.save(os.path.join('data', 'feats_test.npy'), feats_test)
-        np.save(os.path.join('data', 'target_test.npy'), target_test)
+        np.save(os.path.join(basic_path, 'data/feats_test.npy'), feats_test)
+        np.save(os.path.join(basic_path, 'data/target_test.npy'), target_test)
 
-        if os.path.exists('data/target_test.npy'):
+        if os.path.exists(os.path.join(basic_path, 'data/target_test.npy')):
             print('--' * 40)
             print('saving successful')
 
@@ -126,9 +130,17 @@ def testing_network(model_dir, basic_path, parameter):
     return acc
 
 
-def create_network(input_shape, parameters):
+def create_network(parameter):
 
-    last_filter_size = parameters['last_filter']
+    # Input Shape
+    number_features = parameter['left_context'] + parameter['right_context'] + 1
+    input_shape = (parameter['num_bins'], number_features, 1)
+
+    # Optimizer Settings
+    learning_rate = 0.0001
+    adam = Adam(learning_rate=learning_rate, beta_1=0.9, beta_2=0.999)
+
+    last_filter_size = parameter['last_filter']
     input = Input(shape=input_shape)
 
     #First Block
@@ -140,7 +152,7 @@ def create_network(input_shape, parameters):
     x = Dropout(0.2)(x)
 
     # Group 1
-    x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     aux_output1 = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
@@ -149,9 +161,8 @@ def create_network(input_shape, parameters):
     x = Dropout(0.2)(x)
 
     # Group 2
-    x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
-    aux_output2 = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu',
-                        padding='same')(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+    aux_output2 = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
     x = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
@@ -159,28 +170,34 @@ def create_network(input_shape, parameters):
     x = Dropout(0.2)(x)
 
     # Group 3
-    x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
 
-    aux_output3 = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    aux_output3 = Conv2D(int(last_filter_size), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
     x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output3])
+    x = Dropout(0.2)(x)
 
-    x = MaxPooling2D(pool_size=(1, 2), strides=(1, 2), padding='same')(x)
-
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same', name='LastConv')(x)
 
-    #x = Reshape((gp.number_bins, gp.last_filter_size))(x)
+    x = Reshape((11, 2*256))(x)
 
-    #x = tf.keras.layers.Bidirectional(LSTM(168, activation='sigmoid'))(x)
+    x = tf.keras.layers.Bidirectional(LSTM(256, activation='sigmoid'))(x)
 
     x = Flatten()(x)
     x = tf.keras.layers.Dense(512, activation='relu')(x)
-    x = Dense(parameters['classes'], activation='sigmoid')(x)
+    x = Dense(parameter['classes'], activation='sigmoid')(x)
 
-    return Model(input, x)
+    model = Model(input, x)
+
+    # Compiling and Building of the Model
+    model.compile(loss=tf.keras.losses.BinaryCrossentropy(), optimizer=adam, metrics=['accuracy'])
+    model.summary()
+
+    return model
 
 
 def wav_to_posterior(model, audio_file, parameters):
