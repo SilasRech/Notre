@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 import librosa as rosa
 from keras import utils
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+import pumpp
 
 
 def extract_features(audio_file, parameters):
@@ -19,11 +22,12 @@ def extract_features(audio_file, parameters):
     # normalize audio signal to -1 to 1
     signal_norm = signal / max(signal)
 
-    features_cqt = np.abs(
-        rosa.cqt(signal_norm, sr=sampling_rate, fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
+    features = np.abs(rosa.cqt(signal_norm, sr=sampling_rate, fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
                  n_bins=parameters['num_bins'], hop_length=parameters['hop_size'])).T
 
-    features_with_context = add_context(features_cqt, parameters['left_context'], parameters['right_context'])
+    ##features = np.abs(rosa.stft(signal_norm, n_fft=1024, hop_length=160, win_length=256))
+
+    features_with_context = add_context(features, parameters['left_context'], parameters['right_context'])
 
     return features_with_context
 
@@ -37,20 +41,40 @@ def create_multi_labels(label_path, classes):
     labels = pd.read_excel(label_path, header=None)
 
     # Delete first six rows as it contains only information
-    mod_labels = labels.drop(list(range(6))).to_numpy()
+    mod_labels = labels.drop(list(range(6))).to_numpy()[:,1:]
 
-    hot_encoded_label = np.zeros((mod_labels.shape[0], classes))
+    hot_encoded_label = np.zeros((mod_labels.shape[0], classes +1))
 
     # Make one hot encoded vector from all classes
     for i in range(5):
-        hot_encoded_label += utils.to_categorical(mod_labels[:, i], num_classes=classes)
+        hot_encoded_label += utils.to_categorical(mod_labels[:, i], num_classes=classes +1)
 
     hot_encoded_label = np.where(hot_encoded_label == 0, 0, 1)
 
-    return hot_encoded_label
+    return hot_encoded_label[:, 1:]
 
 
-def add_context(feats, left_context=6, right_context=6):
+def create_labels(label_path, classes):
+    """
+   :param labels: path to label
+   :return: New list of labels in form of a dataframe
+   """
+
+    labels = pd.read_excel(label_path, header=None)
+
+    # Delete first six rows as it contains only information
+    mod_labels = labels.drop(list(range(6))).to_numpy()[:,1:]
+
+    hot_encoded_label = np.zeros((mod_labels.shape[0], classes+1, 5))
+
+    # Make one hot encoded vector from all classes
+    for i in range(5):
+        hot_encoded_label[:, :, i] = utils.to_categorical(mod_labels[:, i], num_classes=classes +1)
+
+    return hot_encoded_label[:, 1:, :]
+
+
+def add_context(feats, left_context=7, right_context=7):
     """
     Adds context to the features.
 
