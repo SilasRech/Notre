@@ -66,11 +66,6 @@ def train_model(model_dir, basic_path, parameter):
 
     num_packages = np.arange(0, end_training_data, step_size).astype(int)
 
-    # shuffle data
-    #shuffled_list = list(zip(x_dirs_train, y_dirs_train))
-    #random.shuffle(shuffled_list)
-    #x_dirs, y_dirs = zip(*shuffled_list)
-
     for j in range(1):
 
         shuffled_list = list(zip(x_dirs_train, y_dirs_train))
@@ -85,12 +80,10 @@ def train_model(model_dir, basic_path, parameter):
             np.save(os.path.join(basic_path, 'data/target_train{}.npy'.format(i)), target_train)
 
             history = model.fit(feats_train, target_train,
-            #history = model.fit(feats_train, target_train[:, :, j],
                                 batch_size=150,
-                                epochs=3,
+                                epochs=1,
                                 callbacks=[tensorboard],
                                 validation_data=(feats_eval, target_eval),
-                                #validation_data=(feats_eval, target_eval[:, :, 1]),
                                 shuffle=True)
 
             model.save(model_dir)
@@ -136,14 +129,6 @@ def testing_network(model_dir, basic_path, parameter):
     model = models.load_model(model_dir)
 
     number_features = parameter['left_context'] + parameter['right_context'] + 1
-    input_shape = (parameter['num_bins'], number_features, 1)
-
-    #input = Input(shape=input_shape)
-    #model_softmax = model(input)
-    #x = tf.keras.layers.Softmax()(model_softmax)
-    #model = Model(input, x)
-
-    #model.summary()
 
     print('--' * 40)
     print('starting testing...')
@@ -214,14 +199,14 @@ def create_network(parameter):
     model.summary()
     output_shape = model.get_layer('LastConv').output_shape
 
-    input2 = Input(shape=output_shape[1:3])
+    input2 = Input(shape=(output_shape[1], output_shape[2], output_shape[3]))
 
     x = Reshape((output_shape[1] * output_shape[2], output_shape[3]))(input2)
 
     x = tf.keras.layers.Bidirectional(LSTM(256, activation='sigmoid'))(x)
 
     x = Flatten()(x)
-    #x = tf.keras.layers.Dense(512, activation='relu')(x)
+    x = tf.keras.layers.Dense(512, activation='relu')(x)
     x = Dense(parameter['classes'], activation='sigmoid')(x)
 
     model_2 = Model(input2, x)
@@ -234,8 +219,6 @@ def create_network(parameter):
 
     # Compiling and Building of the Model
     model_all.compile(loss=weighted_binary_loss, optimizer=optimizer, metrics=['accuracy'])
-    #model_all.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True), optimizer=adam, metrics=['accuracy'])
-    #model_all.compile(loss=tf.keras.losses.binary_crossentropy, optimizer=adam, metrics=['accuracy'])
     model_all.summary()
 
     return model_all
@@ -263,15 +246,14 @@ def generator(x_dirs, y_dirs, parameters):
         feats = fe.extract_features(x_dirs[i], parameters)
 
         # get label
-        target = fe.create_multi_labels(y_dirs[i], parameters['classes'])
-        #target = fe.create_labels(y_dirs[i], parameters['classes'])
+        #target = fe.create_multi_labels(y_dirs[i], parameters['classes'])
+        target = fe.create_labels(y_dirs[i], parameters['classes'])
 
         minimal_length = np.min([feats.shape[0], target.shape[0]])
 
         # bring to the same length
         feats = feats[:minimal_length, :, :, :]
         target = target[:minimal_length, :]
-        #target = target[:minimal_length, :, :]
 
         # append to list with features and targets
         length_feats += len(feats)
@@ -284,7 +266,6 @@ def generator(x_dirs, y_dirs, parameters):
 
     target_list = list(chain.from_iterable(target_list))
     target_list_new = np.reshape(np.array(target_list), newshape=(length_feats, parameters['classes']))
-    #target_list_new = np.reshape(np.array(target_list), newshape=(length_feats, parameters['classes'], 5))
 
     return feats_list_new, target_list_new
 

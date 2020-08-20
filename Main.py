@@ -89,7 +89,7 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
 if __name__ == "__main__":
 
     # path to database
-    basic_path = 'D:/Backup/Trainingsdatenbank/BenjaminDaten/'
+    basic_path = 'D:/Backup/Trainingsdatenbank/BenjaminDaten/InstrumentNo1/'
 
     # parameters for the feature extraction
     parameter = { 'hop_size': 160,
@@ -111,15 +111,15 @@ if __name__ == "__main__":
         os.makedirs('model')
 
     # train neural network and save model to model_dir
-    history = nn.train_model(model_dir, basic_path, parameter)
+    #history = nn.train_model(model_dir, basic_path, parameter)
 
     # test the network with unknown data
-    accuracy = nn.testing_network(model_dir, basic_path, parameter)
+    #accuracy = nn.testing_network(model_dir, basic_path, parameter)
 
     #print('--' * 40)
     #print("Total Testing Accuracy: {} %".format(accuracy*100))
 
-    visualization_network(model_dir, 'test/Random_rSeed90_Noise3.wav', 'test/Random_rSeed90_Noise3_Labels.xls', parameter)
+    visualization_network(model_dir, 'test/Random_rSeed101_Noise1.wav', 'test/Random_rSeed101_Noise1_Labels.xls', parameter)
 
 
 
