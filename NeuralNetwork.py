@@ -17,6 +17,7 @@ from tensorflow.python.framework import ops
 import random
 from sklearn.preprocessing import normalize
 
+
 def train_model(model_dir, basic_path, parameter):
 
     # Clear Model

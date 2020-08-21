@@ -8,6 +8,7 @@ import feature_extraction as fe
 import os
 import librosa as rosa
 from scipy.io import wavfile
+import pumpp
 
 
 def visualization_network(model_dir, audio_file, label_dir, parameters):
@@ -21,8 +22,19 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
     # normalize audio signal to -1 to 1
     signal_norm = signal / max(signal)
 
-    features = np.abs(rosa.cqt(signal_norm, sr=16000, fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
-                 n_bins=parameters['num_bins'], hop_length=parameters['hop_size']))
+    #features = np.abs(rosa.cqt(signal_norm, sr=16000, fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
+    #             n_bins=parameters['num_bins'], hop_length=parameters['hop_size']))
+
+    bins_per_octave = 36
+    features = np.abs(rosa.cqt(signal_norm, sr=16000, fmin=rosa.note_to_hz(parameters['f_min']),
+                               bins_per_octave=bins_per_octave,
+                               n_bins=int(5*bins_per_octave), hop_length=parameters['hop_size']))
+
+    #extractor = pumpp.feature.CQT('CQT', sr = 16000, hop_length=160, n_octaves=5, fmin=rosa.note_to_hz(parameters['f_min']))
+    #features = extractor.transform_audio(y=signal_norm)['mag']
+
+    #extractor2 = pumpp.feature.Tempogram('Tempo', sr=16000, hop_length=160, win_length=256)
+    #features = extractor2.transform_audio(y=signal_norm)['tempogram']
 
     flatui = ["#ffffff", "#000000"]
     my_cmap = ListedColormap(sns.color_palette(flatui).as_hex())
@@ -127,14 +139,14 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
 if __name__ == "__main__":
 
     # path to database
-    basic_path = 'D:/Backup/Trainingsdatenbank/BenjaminDaten/InstrumentNo2/'
+    basic_path = 'D:/Backup/Trainingsdatenbank/BenjaminDaten/InstrumentNo1/'
 
     # parameters for the feature extraction
     parameter = { 'hop_size': 160,
                   'f_min': 'D2',
                   'bins_per_octave': 36,
                   'num_bins': 168,
-                  'left_context': 15,
+                  'left_context': 1,
                   'right_context': 15,
                   'sampling_rate': 16000,
                   'classes': 60,
