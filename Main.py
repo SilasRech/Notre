@@ -8,46 +8,27 @@ import feature_extraction as fe
 import os
 import librosa as rosa
 from scipy.io import wavfile
-import pumpp
 
 
 def visualization_network(model_dir, audio_file, label_dir, parameters):
 
     model = models.load_model(model_dir)
-    label = fe.create_multi_labels(label_dir, parameters['classes'])
+    label = fe.create_labels(label_dir, parameters['classes'])
 
     # load and read audio signal
     sampling_rate, signal = wavfile.read(audio_file)
 
     # normalize audio signal to -1 to 1
     signal_norm = signal / max(signal)
-    Feature_Extractor = pumpp.feature.CQT(name='CQT', sr=16000, hop_length=parameters['hop_size'],n_octaves=5, fmin=73.43)
 
-    features = Feature_Extractor.transform_audio(signal_norm)['mag']
-    #features = np.abs(rosa.cqt(signal_norm, sr=16000, fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
-    #             n_bins=parameters['num_bins'], hop_length=parameters['hop_size']))
-
-    #features = np.abs(rosa.stft(signal_norm,  n_fft=1024, hop_length=160, win_length=256))
-    #features = fe.add_context(features)
-    #features = np.reshape(features, newshape=(1001, 84, 31))
+    features = np.abs(rosa.cqt(signal_norm, sr=16000, fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
+                 n_bins=parameters['num_bins'], hop_length=parameters['hop_size']))
 
     flatui = ["#ffffff", "#000000"]
     my_cmap = ListedColormap(sns.color_palette(flatui).as_hex())
 
     # CQT Feature Spectrum
-    plt.imshow(features.T, origin='lower', aspect='auto')
-    plt.xlabel('Frames')
-    plt.title('CQT Features')
-    plt.ylabel('CQT-Bins')
-    plt.colorbar()
-    plt.savefig('test/OriginalFeatures_CQT_600.png')
-    plt.show()
-
-    flatui = ["#ffffff", "#000000"]
-    my_cmap = ListedColormap(sns.color_palette(flatui).as_hex())
-
-    # CQT Feature Spectrum
-    plt.imshow(features.T, origin='lower', aspect='auto', cmap='jet')
+    plt.imshow(features, origin='lower', aspect='auto')
     plt.xlabel('Frames')
     plt.title('CQT Features')
     plt.ylabel('CQT-Bins')
@@ -70,7 +51,10 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
     posterior = nn.wav_to_posterior(model, audio_file, parameters)
 
     # Keep only the classes with the five highest probabilities
-    posterior_cleaned = nn.smooth_classes(posterior, a=0.1)
+    posterior_cleaned = nn.smooth_classes(posterior, a=0.15)
+
+    accuracy = nn.calculate_accuracy(posterior, label, a=0.15)
+    accuracy_biased = nn.calculate_biased_accuracy(posterior, label, a=0.15)
 
     # Predicted classes for frame
     colormap = plt.imshow(posterior_cleaned.transpose(), origin='lower', cmap=my_cmap, aspect='auto', extent=[0, posterior_cleaned.shape[0], 0, posterior_cleaned.shape[1]])
@@ -83,7 +67,13 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
     plt.savefig('test/NetworkLabel.png')
     plt.show()
 
-    return posterior
+    print('--' * 70)
+    print("Testing Accuracy of one test sample: {} %".format(accuracy))
+    print('--' * 70)
+    print("Biased Testing Accuracy of one test sample: {} % of played notes were detected correctly".format(accuracy_biased))
+    print('--' * 70)
+
+    return accuracy, accuracy_biased
 
 
 if __name__ == "__main__":
@@ -95,7 +85,7 @@ if __name__ == "__main__":
     parameter = { 'hop_size': 160,
                   'f_min': 'D2',
                   'bins_per_octave': 36,
-                  'num_bins': 168,
+                  'num_bins': 84,
                   'left_context': 15,
                   'right_context': 15,
                   'sampling_rate': 16000,
@@ -114,10 +104,12 @@ if __name__ == "__main__":
     #history = nn.train_model(model_dir, basic_path, parameter)
 
     # test the network with unknown data
-    #accuracy = nn.testing_network(model_dir, basic_path, parameter)
+    #accuracy, accuracy_biased = nn.testing_network(model_dir, basic_path, parameter)
 
     #print('--' * 40)
-    #print("Total Testing Accuracy: {} %".format(accuracy*100))
+    #print("Total Testing Accuracy: {} %".format(accuracy))
+    #print('--' * 40)
+    #print("Biased Testing Accuracy: {} % of played notes were detected correctly".format(accuracy_biased))
 
     visualization_network(model_dir, 'test/Random_rSeed101_Noise1.wav', 'test/Random_rSeed101_Noise1_Labels.xls', parameter)
 
