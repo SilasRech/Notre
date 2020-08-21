@@ -22,6 +22,7 @@ def extract_features(audio_file, parameters):
     # normalize audio signal to -1 to 1
     signal_norm = signal / max(signal)
 
+    # extract features
     features = np.abs(rosa.cqt(signal_norm, sr=sampling_rate, fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
                  n_bins=parameters['num_bins'], hop_length=parameters['hop_size'])).T
 
@@ -52,7 +53,7 @@ def create_multi_labels(label_path, classes):
     return hot_encoded_label[:, 1:]
 
 
-def create_labels(label_path, classes):
+def create_labels(label_path):
     """
    :param labels: path to label
    :return: New list of labels in form of a dataframe
@@ -60,16 +61,6 @@ def create_labels(label_path, classes):
 
     labels = pd.read_excel(label_path, header=None)
 
-    ## Delete first six rows as it contains only information
-    #mod_labels = labels.drop(list(range(6))).to_numpy()[:,1:]
-
-    #hot_encoded_label = np.zeros((mod_labels.shape[0], classes+1, 5))
-
-    ## Make one hot encoded vector from all classes
-    #for i in range(5):
-    #    hot_encoded_label[:, :, i] = utils.to_categorical(mod_labels[:, i], num_classes=classes +1)
-
-    #return hot_encoded_label[:, 1:, :]
     return labels.to_numpy()
 
 

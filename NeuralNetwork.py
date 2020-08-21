@@ -17,7 +17,6 @@ from tensorflow.python.framework import ops
 import random
 from sklearn.preprocessing import normalize
 
-
 def train_model(model_dir, basic_path, parameter):
 
     # Clear Model
@@ -123,7 +122,7 @@ def testing_network(model_dir, basic_path, parameter):
             print('saving successful')
             print('--' * 40)
 
-    model = models.load_model(model_dir)
+    model = models.load_model(model_dir, custom_objects={'loss': weighted_binary_loss})
 
     print('--' * 40)
     print('starting testing...')
@@ -131,12 +130,135 @@ def testing_network(model_dir, basic_path, parameter):
 
     posteriors = model.predict(x=feats_test, verbose=1)
 
-    accuracy = calculate_accuracy(posteriors, target_test, a=0.12)
+    smoothed_posteriors = smooth_classes(posteriors, 0.15)
+    accuracy = calculate_accuracy(smoothed_posteriors, target_test)
 
-    accuracy_biased = calculate_biased_accuracy(posteriors, target_test, a=0.12)
+    accuracy_biased = []
+    accuracy_utterance = []
+    for i in range(149):
+        # Select data
+        new_posteriors = posteriors[i*1000:(i+1)*1000, :]
+        new_target_test = target_test[i*1000:(i+1)*1000, :]
 
-    return accuracy, accuracy_biased
+        new_smoothed_posteriors = smooth_classes(new_posteriors, 0.15)
+        accuracy_biased.append(calculate_biased_accuracy(new_smoothed_posteriors, new_target_test))
 
+        utterance_posterior = to_utterance(new_posteriors, 0.15, 8, 3)
+        accuracy_utterance.append(calculate_accuracy(utterance_posterior, new_target_test))
+
+    accuracy_biased_np = np.asarray(accuracy_biased)
+    accuracy_biased = np.sum(accuracy_biased_np) / accuracy_biased_np.shape[0]
+
+    accuracy_utterance_np = np.asarray(accuracy_utterance)
+    accuracy_utterance = np.sum(accuracy_utterance_np) / accuracy_utterance_np.shape[0]
+
+    return accuracy, accuracy_biased, accuracy_utterance
+
+
+def wav_to_posterior(model, audio_file, parameters):
+
+    feats = fe.extract_features(audio_file, parameters)
+
+    # predict posteriors with the trained model
+    posteriors = model.predict(feats)
+
+    return posteriors
+
+
+def generator(x_dirs, y_dirs, parameters):
+    feats_list = []
+    target_list = []
+
+    length_feats = 0
+    number_context = parameters['left_context'] + parameters['right_context'] + 1
+
+    for i in tqdm(range(len(x_dirs))):
+        # compute features
+        feats = fe.extract_features(x_dirs[i], parameters)
+
+        # get label
+        target = fe.create_labels(y_dirs[i])
+
+        minimal_length = np.min([feats.shape[0], target.shape[0]])
+
+        # bring to the same length
+        feats = feats[:minimal_length, :, :, :]
+        target = target[:minimal_length, :]
+
+        # append to list with features and targets
+        length_feats += len(feats)
+        feats_list.append(feats)
+        target_list.append(target)
+
+    # convert list to numpy array
+    feats_list = list(chain.from_iterable(feats_list))
+    feats_list_new = np.reshape(np.array(feats_list), newshape=(length_feats, parameters['num_bins'], number_context, 1))
+
+    target_list = list(chain.from_iterable(target_list))
+    target_list_new = np.reshape(np.array(target_list), newshape=(length_feats, parameters['classes']))
+
+    return feats_list_new, target_list_new
+
+
+def calculate_accuracy(posteriors, y_dirs):
+
+    # Bring both matrices to the same length
+    y_dirs = y_dirs[:len(posteriors), :]
+
+    # check if indices are the same
+    similarity = (posteriors.flatten() == y_dirs.flatten()) * 1
+
+    return 100 * np.sum(similarity) / len(similarity)
+
+
+def calculate_biased_accuracy(posteriors, y_dirs):
+
+    # Bring both matrices to the same length
+    y_dirs = y_dirs[:len(posteriors), :]
+
+    similarity = np.multiply(posteriors, y_dirs).flatten()
+
+    return 100 * np.sum(similarity) / np.sum(y_dirs)
+
+
+def smooth_classes(posteriors, a):
+
+    # Normalize data for better threshold
+    posteriors_normalized = normalize(posteriors, axis=1)
+    posteriors_cleaned = np.where(posteriors_normalized > a, 1, 0)
+
+    return posteriors_cleaned
+
+
+def weighted_binary_loss(y_true, y_pred):
+
+    epsilon = 1e-7
+    y_pred = ops.convert_to_tensor(y_pred)
+    y_true = math_ops.cast(y_true, y_pred.dtype)
+
+    y_true = tf.dtypes.cast(y_true, tf.float32)
+    alpha = float(1.5)
+    first = y_true * math_ops.log(y_pred + epsilon)
+    second = alpha * (1 - y_true) * math_ops.log(1 - y_pred + epsilon)
+
+    return -(first + second)
+
+
+def to_utterance(posteriors, a, smooth_len, threshold):
+
+    posteriors_cleaned = smooth_classes(posteriors, a)
+    cut_off = int(round(len(posteriors_cleaned) - len(posteriors_cleaned) % smooth_len))
+
+    posteriors_cleaned = posteriors_cleaned[:cut_off, :]
+    new_posteriors = np.zeros(posteriors_cleaned.shape)
+
+    help_post = np.reshape(posteriors_cleaned, newshape=(-1, smooth_len, 60))
+
+    for i in range(len(help_post)):
+        sum_rows = np.where(np.sum(help_post[i], axis=0) >= threshold, 1, 0)
+        new_posteriors[i * smooth_len:i * smooth_len + smooth_len, :] = np.tile(sum_rows, (smooth_len, 1))
+
+    return new_posteriors
 
 def create_network(parameter):
 
@@ -191,118 +313,28 @@ def create_network(parameter):
     x = BatchNormalization()(x)
     x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same', name='LastConv')(x)
 
-    #model = tf.keras.Model(inputs=input, outputs=x)
-    #model.summary()
-    #output_shape = model.get_layer('LastConv').output_shape
+    model = Model(input, x)
+    model.summary()
+    output_shape = model.get_layer('LastConv').output_shape
 
-    #input2 = Input(shape=(output_shape[1], output_shape[2], output_shape[3]))
+    input2 = Input(shape=(output_shape[1], output_shape[2], output_shape[3]))
 
-    #x = Reshape((output_shape[1] * output_shape[2], output_shape[3]))(input2)
-
-    #x = tf.keras.layers.Bidirectional(LSTM(256, activation='sigmoid'))(x)
-
-   # x = Flatten()(input2)
+    x = Reshape((output_shape[1] * output_shape[2], output_shape[3]))(input2)
+    x = tf.keras.layers.Bidirectional(LSTM(256, activation='sigmoid'))(x)
+    x = Flatten()(x)
     x = tf.keras.layers.Dense(512, activation='relu')(x)
     x = Dense(parameter['classes'], activation='sigmoid')(x)
 
-    model_2 = Model(input, x)
+    model_2 = Model(input2, x)
 
     # concatenate both parts
-    #conv_part = model(input)
-    #lstm_part = model_2(conv_part)
-    #model_all = tf.keras.Model(input, lstm_part)
-    model_2.summary()
+    conv_part = model(input)
+    lstm_part = model_2(conv_part)
+    model_all = tf.keras.Model(input, lstm_part)
+    model_all.summary()
 
     # Compiling and Building of the Model
     model_all.compile(loss=weighted_binary_loss, optimizer=optimizer, metrics=['accuracy'])
     model_all.summary()
 
     return model_all
-
-
-def wav_to_posterior(model, audio_file, parameters):
-
-    feats = fe.extract_features(audio_file, parameters)
-
-    # predict posteriors with the trained model
-    posteriors = model.predict(feats)
-
-    return posteriors
-
-
-def generator(x_dirs, y_dirs, parameters):
-    feats_list = []
-    target_list = []
-
-    length_feats = 0
-    number_context = parameters['left_context'] + parameters['right_context'] + 1
-
-    for i in tqdm(range(len(x_dirs))):
-        # compute features
-        feats = fe.extract_features(x_dirs[i], parameters)
-
-        # get label
-        target = fe.create_labels(y_dirs[i], parameters['classes'])
-
-        minimal_length = np.min([feats.shape[0], target.shape[0]])
-
-        # bring to the same length
-        feats = feats[:minimal_length, :, :, :]
-        target = target[:minimal_length, :]
-
-        # append to list with features and targets
-        length_feats += len(feats)
-        feats_list.append(feats)
-        target_list.append(target)
-
-    # convert list to numpy array
-    feats_list = list(chain.from_iterable(feats_list))
-    feats_list_new = np.reshape(np.array(feats_list), newshape=(length_feats, parameters['num_bins'], number_context, 1))
-
-    target_list = list(chain.from_iterable(target_list))
-    target_list_new = np.reshape(np.array(target_list), newshape=(length_feats, parameters['classes']))
-
-    return feats_list_new, target_list_new
-
-
-def calculate_accuracy(posteriors, y_dirs, a):
-
-    # round values to one or zero with threshold a
-    posteriors_cleaned = smooth_classes(posteriors, a)
-
-    # check if indices are the same
-    similarity = (posteriors_cleaned.flatten() == y_dirs.flatten()) * 1
-
-    return 100 * np.sum(similarity) / len(similarity)
-
-
-def calculate_biased_accuracy(posteriors, y_dirs, a):
-
-    posteriors_cleaned = smooth_classes(posteriors, a)
-
-    similarity = np.multiply(posteriors_cleaned, y_dirs).flatten()
-
-    return 100 * np.sum(similarity) / np.sum((y_dirs))
-
-
-def smooth_classes(posteriors, a):
-
-    posteriors_normalized = normalize(posteriors, axis=1)
-    posteriors_cleaned = np.where(posteriors_normalized > a, 1, 0)
-
-    return posteriors_cleaned
-
-
-def weighted_binary_loss(y_true, y_pred):
-
-    epsilon = 1e-7
-    y_pred = ops.convert_to_tensor(y_pred)
-    y_true = math_ops.cast(y_true, y_pred.dtype)
-
-    y_true = tf.dtypes.cast(y_true, tf.float32)
-    alpha = float(0.9)
-    first = (1-alpha) * y_true * math_ops.log(y_pred + epsilon)
-    second = alpha * (1 - y_true) * math_ops.log(1 - y_pred + epsilon)
-
-    return -(first + second)
-
