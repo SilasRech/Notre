@@ -17,13 +17,13 @@ def extract_features(audio_file, parameters):
     :return:
     """
     # load and read audio signal
-    sampling_rate, signal = wavfile.read(audio_file)
+    signal, s = rosa.load(audio_file, parameters['sampling_rate'])
 
     # normalize audio signal to -1 to 1
     signal_norm = signal / max(signal)
 
     # extract features
-    features = np.abs(rosa.cqt(signal_norm, sr=sampling_rate, fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
+    features = np.abs(rosa.cqt(signal_norm, sr=parameters['sampling_rate'], fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
                  n_bins=parameters['num_bins'], hop_length=parameters['hop_size'])).T
 
     features_with_context = add_context(features, parameters['left_context'], parameters['right_context'])

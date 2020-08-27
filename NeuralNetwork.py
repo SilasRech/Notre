@@ -18,6 +18,15 @@ import random
 from sklearn.preprocessing import normalize
 
 
+def optimizer_settings():
+    # Optimizer Settings
+    learning_rate = 0.001
+    optimizer = Nadam(learning_rate=learning_rate, beta_1=0.9, beta_2=0.999)
+    initializer = tf.keras.initializers.GlorotNormal()
+
+    return learning_rate, optimizer, initializer
+
+
 def train_model(model_dir, basic_path, parameter):
 
     # Clear Model
@@ -52,10 +61,11 @@ def train_model(model_dir, basic_path, parameter):
         np.save(os.path.join(basic_path, 'data/target_eval.npy'), target_eval)
 
     # Building the architecture of the network
-    model = create_network(parameter)
+    model = create_conv_network(parameter)
 
     # Callbacks
-    tensorboard = tf.keras.callbacks.TensorBoard(log_dir='logs\multiclassDetection')
+    #tensorboard = tf.keras.callbacks.TensorBoard(log_dir='logs\multiclassDetection')
+    #LearningRateScheduler = tf.keras.callbacks.LearningRateScheduler
 
     x_dirs_train = x_dirs[:int(round(0.7 * len(x_dirs)))]
     y_dirs_train = y_dirs[:int(round(0.7 * len(x_dirs)))]
@@ -67,19 +77,24 @@ def train_model(model_dir, basic_path, parameter):
     num_packages = np.arange(0, end_training_data, step_size).astype(int)
 
     for j in range(3):
-        shuffled_list = list(zip(x_dirs_train, y_dirs_train))
-        random.shuffle(shuffled_list)
-        x_dirs, y_dirs = zip(*shuffled_list)
+        #shuffled_list = list(zip(x_dirs_train, y_dirs_train))
+        #random.shuffle(shuffled_list)
+        #x_dirs, y_dirs = zip(*shuffled_list)
 
         for i in range(len(num_packages)-1):
             print('Epoch:' + ' ' + str(j+1) + '\t' + 'Batch:' + ' ' + str(i+1))
 
-            feats_train, target_train = generator(x_dirs[num_packages[i]:num_packages[i+1]], y_dirs[num_packages[i]:num_packages[i+1]], parameter)
+            #feats_train, target_train = generator(x_dirs[num_packages[i]:num_packages[i+1]], y_dirs[num_packages[i]:num_packages[i+1]], parameter)
+
+            #np.save(os.path.join(basic_path, 'data/feats_train_{}.npy'.format(i+1)), feats_train)
+            #np.save(os.path.join(basic_path, 'data/target_train_{}.npy'.format(i+1)), target_train)
+
+            feats_train = np.load(os.path.join(basic_path, 'data/feats_train_{}.npy'.format(i+1)))
+            target_train = np.load(os.path.join(basic_path, 'data/target_train_{}.npy'.format(i+1)))
 
             history = model.fit(feats_train, target_train,
                                 batch_size=150,
                                 epochs=1,
-                                callbacks=[tensorboard],
                                 validation_data=(feats_eval, target_eval),
                                 shuffle=True)
 
@@ -123,7 +138,10 @@ def testing_network(model_dir, basic_path, parameter):
             print('saving successful')
             print('--' * 40)
 
-    model = models.load_model(model_dir, custom_objects={'loss': weighted_binary_loss})
+    learning_rate, optimizer, initializer = optimizer_settings()
+
+    model = models.load_model(model_dir, compile=False)
+    model.compile(loss=weighted_binary_loss, optimizer=optimizer, metrics=['accuracy'])
 
     print('--' * 40)
     print('starting testing...')
@@ -152,6 +170,14 @@ def testing_network(model_dir, basic_path, parameter):
 
     accuracy_utterance_np = np.asarray(accuracy_utterance)
     accuracy_utterance = np.sum(accuracy_utterance_np) / accuracy_utterance_np.shape[0]
+
+    print('--' * 40)
+    print("Total Testing Accuracy: {} %".format(accuracy))
+    print('--' * 40)
+    print("Biased Testing Accuracy: {} % of played notes were detected correctly".format(accuracy_biased))
+    print('--' * 40)
+    print("Utterance Testing Accuracy: {} % of played notes were detected correctly".format(accuracy_utterance))
+    print('--' * 40)
 
     return accuracy, accuracy_biased, accuracy_utterance
 
@@ -238,7 +264,7 @@ def weighted_binary_loss(y_true, y_pred):
     y_true = math_ops.cast(y_true, y_pred.dtype)
 
     y_true = tf.dtypes.cast(y_true, tf.float32)
-    alpha = float(1.5)
+    alpha = float(10)
     first = y_true * math_ops.log(y_pred + epsilon)
     second = alpha * (1 - y_true) * math_ops.log(1 - y_pred + epsilon)
 
@@ -261,6 +287,7 @@ def to_utterance(posteriors, a, smooth_len, threshold):
 
     return new_posteriors
 
+
 def create_network(parameter):
 
     # Input Shape
@@ -280,35 +307,31 @@ def create_network(parameter):
     x = Conv2D(int(last_filter_size / 8), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
     x = Conv2D(int(last_filter_size / 8), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-    #x = Dropout(0.5)(x)
 
     # Group 1
     x = MaxPooling2D(pool_size=(4, 1), strides=(4, 1), padding='same')(x)
-    aux_output1 = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    aux_output1 = Conv2D(int(last_filter_size / 8), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 8), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 8), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output1])
-    #x = Dropout(0.5)(x)
 
     # Group 2
     x = MaxPooling2D(pool_size=(4, 1), strides=(4, 1), padding='same')(x)
-    aux_output2 = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    aux_output2 = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output2])
-    #x = Dropout(0.5)(x)
 
     # Group 3
     x = MaxPooling2D(pool_size=(4, 1), strides=(4, 1), padding='same')(x)
 
-    aux_output3 = Conv2D(int(last_filter_size), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
-    x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    aux_output3 = Conv2D(int(last_filter_size/2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size/2), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
-    x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size/2), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
     x = layers.concatenate([x, aux_output3])
-    #x = Dropout(0.1)(x)
 
     x = MaxPooling2D(pool_size=(4, 1), strides=(4, 1), padding='same')(x)
     x = BatchNormalization()(x)
@@ -323,7 +346,8 @@ def create_network(parameter):
     x = Reshape((output_shape[1] * output_shape[2], output_shape[3]))(input2)
     x = tf.keras.layers.Bidirectional(LSTM(256, activation='sigmoid'))(x)
     x = Flatten()(x)
-    x = tf.keras.layers.Dense(512, activation='relu')(x)
+    x = tf.keras.layers.Dense(1024, activation='relu')(x)
+    x = tf.keras.layers.Dense(1024, activation='relu')(x)
     x = Dense(parameter['classes'], activation='sigmoid')(x)
 
     model_2 = Model(input2, x)
@@ -336,6 +360,109 @@ def create_network(parameter):
 
     # Compiling and Building of the Model
     model_all.compile(loss=weighted_binary_loss, optimizer=optimizer, metrics=['accuracy'])
+    model_all.summary()
+
+    return model_all
+
+
+def create_conv_network(parameter):
+
+    # Input Shape
+    number_features = parameter['left_context'] + parameter['right_context'] + 1
+    input_shape = (parameter['num_bins'], number_features, 1)
+
+    last_filter_size = parameter['last_filter']
+    input = Input(shape=input_shape)
+
+    # Compiling and Building of the Model
+    learning_rate, optimizer, initializer = optimizer_settings()
+
+    # First Block
+    x = BatchNormalization()(input)
+
+    x = Conv2D(int(last_filter_size / 8), kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 8), kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 8), kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(x)
+
+    # Group 1
+    x = BatchNormalization()(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+
+    # Group 2
+    x = BatchNormalization()(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 4), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+
+    # Group 2
+    x = BatchNormalization()(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+    x = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 2), kernel_size=(3, 3), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Dropout(0.1)(x)
+
+    x = BatchNormalization()(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+    x = Conv2D(int(last_filter_size / 2), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 2), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size / 2), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Dropout(0.1)(x)
+
+    # Group 3
+    x = BatchNormalization()(x)
+    x = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding='same')(x)
+    x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Conv2D(int(last_filter_size), kernel_size=(2, 2), strides=(1, 1), activation='relu', padding='same')(x)
+    x = Dropout(0.1)(x)
+
+    x = BatchNormalization()(x)
+    x = Flatten()(x)
+
+    x = Dense(1024, activation='relu')(x)
+    x = Dense(parameter['classes'], activation='sigmoid')(x)
+
+    model = Model(input, x)
+    model.summary()
+
+    model.compile(loss=weighted_binary_loss, optimizer=optimizer, metrics=['accuracy'])
+
+    return model
+
+
+def eff_net(parameter):
+
+    # Input Shape
+    number_features = parameter['left_context'] + parameter['right_context'] + 1
+    input_shape = (parameter['num_bins'], number_features, 1)
+
+    last_filter_size = parameter['last_filter']
+    new_input = Input(shape=input_shape)
+
+    # Compiling and Building of the Model
+    learning_rate, optimizer, initializer = optimizer_settings()
+
+    model = tf.keras.applications.EfficientNetB3(include_top=False, input_tensor=new_input)
+
+
+    model.summary()
+
+    input_2 = Input(shape=(4096, 1, 1))
+    x = tf.keras.layers.Dense(512, activation='relu')(input_2)
+    x = Dense(parameter['classes'], activation='sigmoid')(x)
+
+    model_2 = Model(input_2, x)
+
+    # concatenate both parts
+    conv_part = model(new_input)
+    dense_part = model_2(conv_part)
+    model_all = tf.keras.Model(new_input, dense_part)
+
     model_all.summary()
 
     return model_all
