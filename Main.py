@@ -9,8 +9,6 @@ import os
 import librosa as rosa
 from scipy.io import wavfile
 
-import pumpp
-
 
 def visualization_network(model_dir, audio_file, label_dir, parameters):
 
@@ -45,10 +43,6 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
     plt.savefig('test/OriginalFeatures_{}_{}.png'.format(parameters['left_context'], parameters['last_filter']))
     plt.show()
 
-    distr_labels = np.sum(label, axis=1)
-    plt.hist(distr_labels)
-    plt.show()
-
     # show true label
     colormap = plt.imshow(label.transpose(), origin='lower', cmap=my_cmap, aspect='auto', extent=[0, label.shape[0], 0, label.shape[1]])
     plt.title('True Label per Frame')
@@ -66,12 +60,6 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
 
     # Keep only the classes with the five highest probabilities
     posterior_cleaned = nn.smooth_classes(posterior, a=0.15)
-
-    distr_num_classes = np.sum(posterior_cleaned, axis=1)
-
-
-    plt.hist(distr_num_classes)
-    plt.show()
 
     # Total Accuracy and Accuracy for played notes
     accuracy = nn.calculate_accuracy(posterior_cleaned, label)

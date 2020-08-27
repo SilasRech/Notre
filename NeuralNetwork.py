@@ -230,7 +230,11 @@ def generator(x_dirs, y_dirs, parameters):
 def calculate_accuracy(posteriors, y_dirs):
 
     # Bring both matrices to the same length
-    y_dirs = y_dirs[:len(posteriors), :]
+
+    if len(posteriors) < len(y_dirs):
+        y_dirs = y_dirs[:len(posteriors), :]
+    else:
+        posteriors = posteriors[:len(y_dirs), :]
 
     # check if indices are the same
     similarity = (posteriors.flatten() == y_dirs.flatten()) * 1
@@ -241,7 +245,10 @@ def calculate_accuracy(posteriors, y_dirs):
 def calculate_biased_accuracy(posteriors, y_dirs):
 
     # Bring both matrices to the same length
-    y_dirs = y_dirs[:len(posteriors), :]
+    if len(posteriors) < len(y_dirs):
+        y_dirs = y_dirs[:len(posteriors), :]
+    else:
+        posteriors = posteriors[:len(y_dirs), :]
 
     similarity = np.multiply(posteriors, y_dirs).flatten()
 
