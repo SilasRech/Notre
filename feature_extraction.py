@@ -1,20 +1,15 @@
-from scipy.io import wavfile
 import pandas as pd
 import numpy as np
 import librosa as rosa
 from keras import utils
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-import pumpp
 
 
 def extract_features(audio_file, parameters):
     """
     :param audio_file: path to audio file
-    :param sampling_rate: sample_rate
-    :param number_bins: number of extracted bins for CQT
-    :param hopsize: hop size (frame shift) in samples.
-    :return:
+    :param parameters: dictionary of all settings for the feature extraction such as sampling rate, f_min, num_bin
+                        hopsize and left and right context
+    :return: 3-dimensional feature matrix with MxNxB ([CQT-Features] x [AudioFrameelenght] x [left context +right context +1])
     """
     # load and read audio signal
     signal, s = rosa.load(audio_file, parameters['sampling_rate'])
@@ -26,6 +21,8 @@ def extract_features(audio_file, parameters):
     features = np.abs(rosa.cqt(signal_norm, sr=parameters['sampling_rate'], fmin=rosa.note_to_hz(parameters['f_min']), bins_per_octave=parameters['bins_per_octave'],
                  n_bins=parameters['num_bins'], hop_length=parameters['hop_size'])).T
 
+    #features = np.abs(rosa.stft(signal_norm, n_fft=512, hop_length=160, win_length=256)).T
+
     features_with_context = add_context(features, parameters['left_context'], parameters['right_context'])
 
     return features_with_context
@@ -34,6 +31,7 @@ def extract_features(audio_file, parameters):
 def create_multi_labels(label_path, classes):
     """
    :param labels: path to label
+   :param classes: number of classes in for the neural network output
    :return: New list of labels in form of a dataframe
    """
 

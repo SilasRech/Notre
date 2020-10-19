@@ -1,18 +1,20 @@
 import NeuralNetwork as nn
 import numpy as np
 from tensorflow.keras import models
+import tensorflow as tf
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import seaborn as sns
 import feature_extraction as fe
 import os
 import librosa as rosa
-from scipy.io import wavfile
 
 
 def visualization_network(model_dir, audio_file, label_dir, parameters):
 
-    model = models.load_model(model_dir, compile=False)
+    relu6 = tf.nn.relu6
+
+    model = models.load_model(model_dir, compile=False, custom_objects={'relu6': relu6})
 
     learning_rate, optimizer, initializer = nn.optimizer_settings()
     model.compile(loss=nn.weighted_binary_loss, optimizer=optimizer, metrics=['accuracy'])
@@ -20,7 +22,6 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
     label = fe.create_labels(label_dir)
 
     # load and read audio signal
-    #sampling_rate, signal = wavfile.read(audio_file)
     signal, s = rosa.load(audio_file, parameters['sampling_rate'])
 
     # normalize audio signal to -1 to 1
@@ -31,8 +32,18 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
                                bins_per_octave=bins_per_octave,
                                n_bins=int(5*bins_per_octave), hop_length=parameters['hop_size']))
 
+    features = np.abs(rosa.stft(signal_norm, n_fft=256, hop_length=160, win_length=256))
+
     flatui = ["#ffffff", "#000000"]
     my_cmap = ListedColormap(sns.color_palette(flatui).as_hex())
+
+    #plt.imshow(features_fft, origin='lower', aspect='auto')
+    #plt.xlabel('Frames')
+    #plt.title('FFT Features')
+    #plt.ylabel('FFT-Bins')
+    #plt.colorbar()
+    #plt.savefig('test/FFT_{}_{}.png'.format(parameters['left_context'], parameters['last_filter']))
+    #plt.show()
 
     # CQT Feature Spectrum
     plt.imshow(features, origin='lower', aspect='auto')
@@ -59,26 +70,24 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
     posterior = nn.wav_to_posterior(model, audio_file, parameters)
 
     # Keep only the classes with the five highest probabilities
-    posterior_cleaned = nn.smooth_classes(posterior, a=0.15)
+
+    posterior_utterance = nn.to_utterance(posterior, parameter['threshold'], parameter['num_frames_utterance'])
 
     # Total Accuracy and Accuracy for played notes
-    accuracy = nn.calculate_accuracy(posterior_cleaned, label)
-    accuracy_biased = nn.calculate_biased_accuracy(posterior_cleaned, label)
+    accuracy = nn.calculate_accuracy(posterior_utterance, label)
+    accuracy_biased = nn.calculate_biased_accuracy(posterior_utterance, label)
 
     # Utterance Accuracy
-    #accuracy_list = []
-    #steps = 20
-    #values_threshold = np.linspace(0, 0.5, steps)
+    accuracy_list = []
+    #steps = 40
+    #values_threshold = np.linspace(0, 1, steps)
     #for i in range(1, 25):
     #    accuracy_threshold = []
-    #    for j in range(steps):
-    #        accuracy_threshold_utterance = []
-    #        for k in range(10):
-    #            posterior_utterance = nn.to_utterance(posterior_cleaned, values_threshold[j], i, k)
-    #            accuracy_utterance = nn.calculate_utterance_accuracy(posterior_utterance, label)
-    #            accuracy_threshold_utterance.append(accuracy_utterance)
-
-    #        accuracy_threshold.append(accuracy_threshold_utterance)
+    #   for j in range(steps):
+    #       accuracy_threshold_utterance = []
+    #        posterior_utterance = nn.to_utterance(posterior, values_threshold[j], i)
+    #        accuracy_utterance = nn.calculate_accuracy(posterior_utterance, label)
+    #        accuracy_threshold.append(accuracy_utterance)
     #    accuracy_list.append(accuracy_threshold)
 
     #options_array = np.asarray(accuracy_list)
@@ -86,7 +95,7 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
 
     #maximum = np.unravel_index(options_array.argmax(), options_array.shape)
 
-    posterior_utterance = nn.to_utterance(posterior_cleaned, 0.15, 25, 12)
+    posterior_utterance = nn.to_utterance(posterior_utterance, parameter['threshold'], parameter['num_frames_utterance'])
     accuracy_utterance = nn.calculate_accuracy(posterior_utterance, label)
 
     accuracy_biased_utterance = nn.calculate_biased_accuracy(posterior_utterance, label)
@@ -103,7 +112,7 @@ def visualization_network(model_dir, audio_file, label_dir, parameters):
     plt.show()
 
     # Predicted classes for frame
-    colormap = plt.imshow(posterior_cleaned.transpose(), origin='lower', cmap=my_cmap, aspect='auto', extent=[0, posterior_cleaned.shape[0], 0, posterior_cleaned.shape[1]])
+    colormap = plt.imshow(posterior_utterance.transpose(), origin='lower', cmap=my_cmap, aspect='auto', extent=[0, posterior_utterance.shape[0], 0, posterior_utterance.shape[1]])
     plt.xlabel('Frames')
     plt.title('Predicted Label per Frame')
     plt.ylabel('MIDI-Note')
@@ -132,7 +141,7 @@ if __name__ == "__main__":
     basic_path = 'D:/Backup/Trainingsdatenbank/BenjaminDaten/InstrumentNo1/'
 
     # parameters for the feature extraction
-    parameter = { 'hop_size': 160,
+    parameter = {'hop_size': 160,
                   'f_min': 'D2',
                   'bins_per_octave': 36,
                   'num_bins': 168,
@@ -140,7 +149,9 @@ if __name__ == "__main__":
                   'right_context': 1,
                   'sampling_rate': 16000,
                   'classes': 60,
-                  'last_filter': 512,
+                  'last_filter': 256,
+                  'threshold': 0.2,
+                  'num_frames_utterance': 10,
                   }
 
     # define a name for the model
@@ -151,13 +162,13 @@ if __name__ == "__main__":
         os.makedirs('model')
 
     # train neural network and save model to model_dir
-    #history = nn.train_model(model_dir, basic_path, parameter)
+    history = nn.train_model(model_dir, basic_path, parameter)
 
     # test the network with unknown data
-    #accuracy, accuracy_biased, accuracy_utterance = nn.testing_network(model_dir, basic_path, parameter)
+    accuracy, accuracy_biased, accuracy_utterance = nn.testing_network(model_dir, basic_path, parameter)
 
-    #visualization_network(model_dir, 'test/Random_rSeed101_Noise1.wav', 'test/Random_rSeed101_Noise1_Labels.xls', parameter)
+    visualization_network(model_dir, 'test/Random_rSeed101_Noise1.wav', 'test/Random_rSeed101_Noise1_Labels.xls', parameter)
 
-    visualization_network(model_dir, 'test/beet.wav', 'test/beet.xls', parameter)
+    visualization_network(model_dir, 'test/FeelGood.wav', 'test/FeelGood_Labels.xls', parameter)
 
 
